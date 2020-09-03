@@ -1,0 +1,15 @@
+install.packages("tsDyn")
+require(tsDyn)
+data(barry)
+
+## For VAR
+mod_var <- lineVar(barry, lag = 2)
+summary(mod_var)
+
+## Impulse Response
+irf1<-irf(mod_var, impulse = "dolcan", response = c("cpiUSA", "cpiCAN"), 
+          boot=FALSE, n.ahead=8,ortho=T,runs=1000, seed=1234)
+plot(irf1)
+
+## Rolling Prediction
+predict_rolling(mod_var,nroll=3,n.ahead=1)
