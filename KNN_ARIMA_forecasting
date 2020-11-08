@@ -1,0 +1,77 @@
+#building the time series data
+library(readxl)
+df_xautry <- read_excel("xau_try.xlsx")
+xautry_ts <- ts(df_xautry$price,start = c(2013,1),frequency = 12)
+library(tsfknn)
+ 
+pred <- knn_forecasting(xautry_ts, h = 6, lags = 1:12,k=3)
+autoplot(pred, highlight = "neighbors",faceting = TRUE)
+
+#Seasonality and trend measurements
+library(fpp2)
+ 
+fit <- stl(xautry_ts,s.window = "periodic",t.window = 13,robust = TRUE)
+seasonality <- fit %>% seasonal()
+trend <- fit %>% trendcycle()
+remain <- fit %>% remainder()
+ 
+#Trend
+1-var(remain)/var(trend+remain)
+#[1] 0.990609
+#Seasonality
+1-var(remain)/var(seasonality+remain)
+#[1] 0.2624522
+
+#Splitting time series into training and test data
+test <- window(xautry_ts, start=c(2019,3))
+train <- window(xautry_ts, end=c(2019,2))
+#ARIMA modeling
+library(fpp2)
+ 
+fit_arima<- auto.arima(train, seasonal=FALSE,
+                       stepwise=FALSE, approximation=FALSE)
+ 
+fit_arima
+ 
+#Series: train
+#ARIMA(0,1,2) with drift
+ 
+#Coefficients:
+#          ma1      ma2   drift
+#      -0.1539  -0.2407  1.8378
+#s.e.   0.1129   0.1063  0.6554
+ 
+#sigma^2 estimated as 86.5:  log likelihood=-264.93
+#AIC=537.85   AICc=538.44   BIC=547.01
+
+#Modeling and forecasting
+library(tsfknn)
+ 
+pred <- knn_forecasting(xautry_ts, h = 18, lags = 1:12,k=3)
+#Forecasting plotting for KNN
+autoplot(pred, highlight = "neighbors", faceting = TRUE)
+
+#ARIMA accuracy
+f_arima<- fit_arima %>% forecast(h =18) %>%
+  accuracy(test)
+ 
+f_arima[,c("RMSE","MAE","MAPE")]
+ 
+#                 RMSE       MAE      MAPE     
+#Training set  9.045488  5.529203  4.283023
+#Test set     94.788638 74.322505 20.878096
+
+#Forecasting plot for ARIMA
+fit_arima %>% forecast(h=18) %>% autoplot()+ autolayer(test)
+
+#KNN Accuracy
+ro <- rolling_origin(pred, h = 18,rolling = FALSE)
+ro$global_accu
+ 
+#  RMSE       MAE      MAPE
+#137.12465 129.77352  40.22795
+
+#Accuracy plot for KNN
+plot(ro)
+
+#ref: https://datageeek.wordpress.com/2020/09/29/time-series-forecasting-knn-vs-arima/
